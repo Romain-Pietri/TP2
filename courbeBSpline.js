@@ -13,69 +13,6 @@ scene.add(camera);
 scene.background = new THREE.Color(0x000000);
 var boolean_construction = false;
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////// Courbe de Bézier avec De Casteljau /////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-function Casteljau(controlPoints, t) {
-    //applique l'algorithme de Casteljau
-    const n = controlPoints.length - 1;
-    const points = controlPoints.map(p => ({ x: p.x, y: p.y })); //fait une copie de controlPoints et le met dans un tableau d'object
-    const steps = []
-    for (let k = 0; k < n; k++) {
-        for (let i = 0; i < n - k; i++) {
-            points[i].x = (1 - t) * points[i].x + t * points[i + 1].x;//applique la formule de Casteljau
-            points[i].y = (1 - t) * points[i].y + t * points[i + 1].y;
-            steps.push(points.map(p => ({ x: p.x, y: p.y })));
-        }
-    }
-    return { finalPoints: points, steps: steps };
-}
-
-function Draw_Calsteljau(point_control) {
-    scene.remove.apply(scene, scene.children);
-    scene.add(plan_obj);
-    affiche_point_control();
-    affiche_trait();
-    renderer.render(scene, camera);
-    // Échantillonnez la courbe de Bézier en utilisant Casteljau
-    const numberOfPoints = 3000; // Nombre de points à placer
-    const pointsOnBezierCurve = [];
-    var temp_point = [];
-    const construction_points = [];
-    for (let i = 0; i <= numberOfPoints; i++) {
-        // Calculez le point sur la courbe de Bézier en utilisant Casteljau
-        const t = i / numberOfPoints;
-        const temp_point = Casteljau(point_control, t);//recupere tous les points
-        const point = temp_point.finalPoints[0];// recupere le point final
-        pointsOnBezierCurve.push(new THREE.Vector3(point.x, point.y, 0));//ajoute le point final dans le tableau pour tracer la courbe
-        construction_points.push(temp_point.steps);//ajoute les points de construction dans le tableau
-    }
-    if (boolean_construction){
-    // affiche les ligne de construction
-        for (let i = 0; i < construction_points.length; i += 50) {
-            for (let j = 0; j < construction_points[i].length; j++) {
-                const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff });
-                const lineGeometry = new THREE.BufferGeometry().setFromPoints([construction_points[i][j][0], construction_points[i][j][1]]);
-                const line = new THREE.Line(lineGeometry, lineMaterial);
-                scene.add(line);
-            }
-        }
-    }   
-
-    // la géométrie pour la courbe de Bézier
-    const bezierGeometry2 = new THREE.BufferGeometry().setFromPoints(pointsOnBezierCurve);
-    const lineMaterial2 = new THREE.LineBasicMaterial({ color: 0xff0f00 }); 
-    const bezierLine2 = new THREE.Line(bezierGeometry2, lineMaterial2);
-
-    // Ajoutez la ligne à la scène
-    scene.add(bezierLine2);
-    renderer.render(scene, camera);
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////// Courbe de Bézier avec les fonctions de base de Bernstein /////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 function binomialCoeff(n, k) {
     // fonction qui calcule les coefficients binomiaux
     if (Number.isNaN(n) || Number.isNaN(k)) return NaN; // si pas des entiers
@@ -89,6 +26,53 @@ function binomialCoeff(n, k) {
     return Math.round(res); // arrondi à l'entier le plus proche
 }
 
+// ici on fait B-Splines
+
+function funcBSplines(m, i, t, T) {
+    console.log("m", m, "i", i, "t", t, "T", T);
+    if (m == 0)
+    {
+        if (T[i].deg <= t && t <= T[i+1].deg) return 1;
+        else return 0;
+    }
+    else {
+        console.log("t", t, "T[i].deg", T[i].deg, "T[i+m].deg", T[i+m].deg, "T[i+m+1].deg", T[i+m+1].deg, "T[i+1].deg", T[i+1].deg)
+        N = (t - T[i].deg) / (T[i+m].deg - T[i].deg) * funcBSplines(m-1, i, t, T) + (T[i+m+1].deg - t) / (T[i+m+1].deg - T[i+1].deg) * funcBSplines(m-1, i+1, t, T);
+    }
+}
+
+function courbeBSpline(t, n, P) {
+    let x = 0;
+    let y = 0;
+    
+    for (let m = 0; m < n-1; m++) {
+        for (let i = 0; i < n-m-1; i++ ) {
+            x += P[i].x * funcBSplines(m, i, t, P);
+            y += P[i].y * funcBSplines(m, i, t, P);
+            console.log("x", x, "y", y)
+        }
+    }
+    return {x, y};
+}
+
+function draw_Bspline(point_control) {
+    const pointOnBSpline = [];
+
+    const nb_points = 10;
+    const point = [];
+    for(let i = 0; i < nb_points; i++) {
+        let t=i/nb_points;
+        point.push(courbeBSpline(t, point_control.length, point_control));
+        console.log(point);
+        pointOnBSpline.push(new THREE.Vector3(point.x, point.y, 0));//ajoute le point final dans le tableau pour tracer la courbe
+    }    
+    const curveGeometry = new THREE.BufferGeometry().setFromPoints(pointOnBSpline);
+    const curveMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+    const curveObject = new THREE.Line(curveGeometry, curveMaterial);
+    console.log("pointOnBSpline", pointOnBSpline);    
+    scene.add(curveObject);
+    renderer.render(scene, camera);
+}
 
 function bernstein(n, i, t) {
     // fonction qui calcule les fonctions de base de Bernstein
@@ -96,79 +80,25 @@ function bernstein(n, i, t) {
     return b;
 }
 
-function bezierBernstein(point, t) {
-    // fonction qui calcule la courbe de Bézier avec les fonctions de base de Bernstein
-    var x = 0;
-    var y = 0;
-    const tab_poly = [];
-    var n = point.length - 1;
-    for (let i = 0; i <= point.length - 1; i++) {
-        const coefficient = bernstein(n, i, t); // calcule les coefficients de Bernstein
-        x += point[i].x * coefficient;
-        y += point[i].y * coefficient;
-        tab_poly.push(coefficient);
+function De_Boor(k, x, point_control, point, p) {
+    // algorithme DeBoor
+    // k index du noeud
+    // x position
+    // point_control tableau des points de controle
+    // point point de la courbe
+    // p degré de la courbe
+    if (k == 0) {
+        return point_control[x];
     }
-
-    return { x: x, y: y, coef: tab_poly };
-}
-
-function DrawBernsteinFunctions(n) {
-    // fonction qui trace les fonctions de base de Bernstein
-    const numberOfPoints = 100; // Nombre de points à placer sur chaque fonction de base de Bernstein
-
-    for (let i = 0; i <= n; i++) { //pour chaque point de controle
-        const pointsOnBernsteinFunction = [];
-        for (let j = 0; j <= numberOfPoints; j++) { // on calcule les points de la fonction de base de Bernstein
-            const t = j / numberOfPoints;
-            const coefficient = bernstein(n, i, t) //on applique la formule du polynome de Bernstein
-            const x = t * 20 - 40; // on ajuste les coordonnée pour que la courbe soit visible et placé correctement
-            const y = coefficient * 20 - 20;
-            pointsOnBernsteinFunction.push(new THREE.Vector3(x, y, 0));
-        }
-        //on affiche toutes les courbes des polynome de Bernstein
-        const bezierGeometry = new THREE.BufferGeometry().setFromPoints(pointsOnBernsteinFunction);
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 }); 
-        const bezierLine = new THREE.Line(bezierGeometry, lineMaterial);
-        scene.add(bezierLine);
-        renderer.render(scene, camera);
+    else {
+        let alpha = (x - k) / p;
+        let point1 = De_Boor(k - 1, x, point_control, point, p);
+        let point2 = De_Boor(k - 1, x + 1, point_control, point, p);
+        point.x = (1 - alpha) * point1.x + alpha * point2.x;
+        point.y = (1 - alpha) * point1.y + alpha * point2.y;
+        return point;
     }
 }
-
-
-function Draw_Bernstein(point_control) {
-    // fonction qui trace la courbe de Bézier avec les fonctions de base de Bernstein
-    scene.remove.apply(scene, scene.children);
-    scene.add(plan_obj);
-    affiche_point_control();
-    affiche_trait();
-    renderer.render(scene, camera);
-    // Échantillonnez la courbe de Bézier en utilisant Bernstein
-    const numberOfPoints = 1000; // Nombre de points à placer
-    const pointsOnBezierCurve = [];
-    const tableau_fonction_base = [];
-
-    for (let i = 0; i <= numberOfPoints; i++) { //pour chaque point a tracer : on calcule les points de la courbe de Bézier 
-        const t = i / numberOfPoints;
-        const point = bezierBernstein(point_control, t);
-        pointsOnBezierCurve.push(new THREE.Vector3(point.x, point.y, 0));
-    }
-    if(boolean_construction){
-        DrawBernsteinFunctions(point_control.length - 1);
-    }
-    // on trace la courbe de Bézier
-    const bezierGeometry1 = new THREE.BufferGeometry().setFromPoints(pointsOnBezierCurve);
-    const lineMaterial1 = new THREE.LineBasicMaterial({ color: 0xff0000}); 
-    const bezierLine1 = new THREE.Line(bezierGeometry1, lineMaterial1);
-
-    console.log(bezierLine1)
-    // Ajoute la ligne à la scène
-    scene.add(bezierLine1);
-    renderer.render(scene, camera);
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////// Affichage des points de contrôle /////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 var point_control = [];
 
@@ -200,6 +130,26 @@ var material_plan = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.D
 var plan_obj = new THREE.Mesh(plan, material_plan);
 scene.add(plan_obj);
 
+function verifDegre(deg, indice){
+    console.log(deg, indice, point_control.length);
+    if(isNaN(deg)){
+        alert("Le degré n'est pas un nombre");
+        return false;
+        
+    }
+
+    if(point_control.length==0){
+        return true;
+    }
+    //si le degré est inférieur au point de controle précédent, retourne false
+    else if(point_control[indice-1].deg>deg){    
+        alert("Le degré est inférieur au degré du point précédent"+ point_control[indice-1].deg);
+        return false;
+    }
+    return true;
+}
+
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////// Gestion des événements avec bouton ///////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -217,12 +167,16 @@ const translateButton = document.getElementById('translate_btn');
 let checkDecasteljau = document.getElementById('show_decasteljau');
 let checkBernstein = document.getElementById('show_bernstein');
 let checkContruct= document.getElementById('construction_line');
+
 addPointButton.addEventListener('click', e => {
     // ajoute un point de controle
     e.preventDefault();
     const x = parseFloat(xInput.value);
     const y = parseFloat(yInput.value);
-    createPoint(x, y);
+    //demande a l'utilisateur le degre du point
+    var deg=0;
+    do{ deg =parseFloat( prompt("Quel est le degré du point?"));}while(!verifDegre(deg,point_control.length));
+    createPoint(x, y,deg);
     xInput.value = '';
     yInput.value = '';
 });
@@ -323,7 +277,7 @@ var pointplacery;
 var bool_placer_point = false;
 var indice_point;
 
-function createPoint(x, y) {
+function createPoint(x, y,deg) {
     //créer un point de controle
     console.log("create point");
     console.log(point_control.length);
@@ -336,12 +290,17 @@ function createPoint(x, y) {
     sphereMesh.material.color.setHex(0x00ffff);
     scene.add(sphereMesh);
     renderer.render(scene, camera);
+    point_control.push({ x, y, deg });
     if (checkDecasteljau.checked) Draw_Calsteljau(point_control);
     if (checkBernstein.checked) Draw_Bernstein(point_control);
 }
 
 function createLine() {
+    console.log("create line", point_control.length);
     // trace un trait entre les points de controle
+    if(point_control.length<=1){
+        return;
+    }
     const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
     const lineGeometry = new THREE.BufferGeometry().setFromPoints([point_control[point_control.length - 2], point_control[point_control.length - 1]]);
     const line = new THREE.Line(lineGeometry, lineMaterial);
@@ -360,7 +319,11 @@ window.addEventListener('mouseup', function (event) {
         if (event.target.nodeName == "INPUT" || event.target.nodeName == "BUTTON" || event.target.nodeName == "LABEL" || event.target.nodeName == "DIV" || event.target.nodeName == "H1" || event.target.nodeName == "FORM") {
             return;
         }
-        createPoint(pointplacerx, pointplacery);
+        var deg=0;
+        do{ deg = parseFloat(prompt("Quel est le degré du point?"));}while(!verifDegre(deg,point_control.length));
+        
+        console.log("ON DEMANDE LE DEGRÉ")
+        createPoint(pointplacerx, pointplacery, deg);
         console.log("on place un point de controle");
         // trace un trait entre les points de controle
         if (point_control.length > 1) {
@@ -385,7 +348,8 @@ window.addEventListener('mouseup', function (event) {
             var pointIntersection = intersects[0].point; // On recupere le point d'intersection entre le laser et le plan en z=0
             point_control[indice_point].x = pointIntersection.x;
             point_control[indice_point].y = pointIntersection.y;
-            point_control[indice_point].deg= prompt("Entrez le degré de la courbe");
+            var deg
+            do{ deg  =parseFloat( this.prompt("Quel est le degré du point?"));}while(!verifDegre(deg,indice_point));
 
         }
         // On met a jour l'affichage
@@ -402,7 +366,7 @@ window.addEventListener('mouseup', function (event) {
     }
 }, false);
 
-/*
+
 function onclick(event) {
     // quand on click on place un point de controle ou on drag and drop un point de controle
 
@@ -425,7 +389,6 @@ function onclick(event) {
 
         pointplacerx = pointIntersection.x;
         pointplacery = pointIntersection.y;
-        
 
         const pointControlLength = point_control.length;
         for (let i = 0; i < pointControlLength; i++) {
@@ -448,13 +411,13 @@ function onclick(event) {
         bool_placer_point = true;
     }
 };
-*/
+
 // quand appuie sur entré ou espace on trace la courbe
 document.addEventListener('keydown', function (event) {
     switch (event.keyCode) {
         case 32: // espace
             console.log("space");
-            Draw_Bernstein(point_control);
+            draw_Bspline(point_control);
             break;
         case 13: // entrée
             console.log("enter");

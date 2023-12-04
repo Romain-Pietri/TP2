@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>three.js app</title>
+    <link rel="stylesheet" href="courbesBezier.css">
+</head>
+
+<body>
+    <div id="header">
+        <h1>TP3 - Courbes BSpline</h1>
+        <div id="form">
+            <form>
+                <input type="text" name="x_coordinate" id="x_coordinate" placeholder="x_coordinate">
+                <input type="text" name="y_coordinate" id="y_coordinate" placeholder="y_coordinate">
+                <input type="submit" id="add_btn" value="Add Point"></input>
+            </form>
+            <form>
+                <input type="text" name="x_translation" id="x_translation" placeholder="x_translation">
+                <input type="text" name="y_translation" id="y_translation" placeholder="y_translation">
+                <input type="submit" id="translate_btn" value="Translate"></input>
+            </form>
+        </div>
+        <button id="reset_btn">Reset graph</button>
+        <div>
+            <label for="show_contruction">Show contruction lines</label>
+            <input type="checkbox" name="show Construction lines" id="construction_line">
+        </div>
+        <div>
+            <label for="show_decasteljau">Show Decasteljau</label>
+            <input type="checkbox" name="show_decasteljau" id="show_decasteljau">
+        </div>
+        <div>
+            <label for="show_bernstein">Show Bernstein</label>
+            <input type="checkbox" name="show_bernstein" id="show_bernstein">
+        </div>
+
+    </div>
+    <script src="three.js"></script>
+    <script src="courbeBSpline.js"></script>
+</body>
+
+</html>
