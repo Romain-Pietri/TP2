@@ -16,96 +16,6 @@ scene.background = new THREE.Color(0x000000); //fond noir
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////// B-spline avec De Boor /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-function BSpline(controlPoints, t, degree) {
-    // Applique l'algorithme de De Boor
-    const n = controlPoints.length - 1;
-    const d = degree;
-    const p = degree + 1;
-    const knots = generateKnots(n, d);
-
-    const points = controlPoints.map(p => ({ x: p.x, y: p.y })); // Fait une copie de controlPoints dans un tableau d'objets
-
-    // Find span of the parameter value
-    let span = findSpan(n, d, t, knots);
-
-    // Initialize the matrix
-    const N = new Array(p);
-    for (let i = 0; i <= d; i++) {
-        N[i] = new Array(p + 1).fill(0);
-        N[i][0] = 1;
-    }
-
-    // Calculate the basis functions
-    for (let j = 1; j <= d; j++) {
-        const saved = j <= span ? j : span;
-        const jmin = span - j + 1;
-        const jmax = (j >= span) ? 1 : d - saved + 1;
-
-        for (let r = jmin; r <= jmax; r++) {
-            const alpha = (t - knots[r]) / (knots[r + p - j + 1] - knots[r]);
-
-            N[r][j] = (1 - alpha) * N[r - 1][j - 1] + alpha * N[r][j - 1];
-        }
-    }
-
-    // Calculate the final point on the B-spline curve
-    let C = { x: 0, y: 0 };
-    for (let i = 0; i <= d; i++) {
-        C.x += points[span - d + i].x * N[span - d + i][d];
-        C.y += points[span - d + i].y * N[span - d + i][d];
-    }
-
-    return C;
-}
-
-function bSplineBasis(controlPoints, t) {
-    const n = controlPoints.length - 1;
-    const d = n - 2; // Le degré de la B-spline est n - 2
-    const p = d + 1;
-    const knots = generateKnots(n, d);
-
-    // Find span of the parameter value
-    let span = findSpan(n, d, t, knots);
-
-    console.log('n:', n);
-    console.log('d:', d);
-    console.log('t:', t);
-    console.log('knots:', knots);
-    console.log('span:', span);
-
-    // Initialize the matrix
-    const N = new Array(p);
-    for (let i = 0; i <= d; i++) {
-        N[i] = new Array(p + 1).fill(0);
-        N[i][0] = 1;
-    }
-
-    // Calculate the basis functions
-    for (let j = 1; j <= d; j++) {
-        const saved = j <= span ? j : span;
-        const jmin = span - j + 1;
-        const jmax = j >= span ? d : d - saved + 1;
-
-        for (let r = jmin; r <= jmax; r++) {
-            const alpha = (t - knots[r]) / (knots[r + p - j + 1] - knots[r]);
-
-            N[r][j] = (1 - alpha) * N[r - 1][j - 1] + alpha * N[r][j - 1];
-        }
-    }
-
-    // Calculate the final point on the B-spline curve
-    let C = { x: 0, y: 0 };
-
-    for (let i = 0; i <= d; i++) {
-        console.log('i:', i, 'N:', N);
-        C.x += controlPoints[span - d + i].x * N[span - d + i][d];
-        C.y += controlPoints[span - d + i].y * N[span - d + i][d];
-    }
-
-    return C;
-}
-
-
 function generateKnots(n, d) {
     // Generate the knot vector
     const knots = [];
@@ -115,46 +25,75 @@ function generateKnots(n, d) {
     return knots;
 }
 
-function findSpan(n, d, t, knots) {
-    // Find the span of the parameter value
-    let span = d;
-    while (t >= knots[span + 1] && span < n) {
-        span++;
+function N(i, degree, knots, t) {
+    let res, tmp1, tmp2;
+    if (degree == 0) {
+        if ((knots[i] <= t) && (t < knots[i + 1])) {
+            res = 1;
+        } else {
+            res = 0;
+        }
+        return res;
+    } else {
+        if ((knots[i + degree] - knots[i]) == 0) {
+            tmp1 = 0;
+        } else {
+            tmp1 = ((t - knots[i]) / (knots[i + degree] - knots[i])) * N(i, degree - 1, knots, t);
+        }
+        if ((knots[i + degree + 1] - knots[i + 1]) == 0) {
+            tmp2 = 0;
+        } else {
+            tmp2 = ((knots[i + degree + 1] - t) / (knots[i + degree + 1] - knots[i + 1])) * N(i + 1, degree - 1, knots, t);
+        }
+        return tmp1 + tmp2;
     }
-    return span;
 }
 
-function Draw_BSpline(point_control) {
-    // fonction qui trace la courbe B-spline
-    scene.remove.apply(scene, scene.children);
-    scene.add(plan_obj);
-    affiche_point_control();
-    affiche_trait();
-    renderer.render(scene, camera);
-    
-    // Échantillonnez la courbe B-spline en utilisant les fonctions de base de B-spline
-    const numberOfPoints = 1000; // Nombre de points à placer
-    const pointsOnBSplineCurve = [];
-    
-    for (let i = 0; i <= numberOfPoints; i++) { // pour chaque point à tracer : on calcule les points de la courbe B-spline
-        const t = i / numberOfPoints;
-        const point = bSplineBasis(point_control, t);
-        pointsOnBSplineCurve.push(new THREE.Vector3(point.x, point.y, 0));
+function BSpline(point_control, degree, knots) {
+    let n = point_control.length - 1;
+    let curvePoints = [];
+
+    for (let t = knots[degree]; t <= knots[point_control.length]; t += 0.1) {
+        let p = { x: 0, y: 0 }
+        for (let i = 0; i < n + 1; i++) {
+            console.log("N: ", N(i, degree, knots, t));
+            let px = point_control[i].x * N(i, degree, knots, t);
+            let py = point_control[i].y * N(i, degree, knots, t);
+            console.log("px:", px, "py:", py);
+            
+            //Rentrée des points de la courbes B spline dans l'objet p
+            p.y += py;
+            p.x += px;
+        }
+        curvePoints.push(p);
     }
-    DrawBSplineFunctions(point_control.length - 1);
-    // if (boolean_construction) {
-        
+    console.log(curvePoints);
+    return curvePoints;
+}
+
+function createBspline(point_control, degre, knots) {
+    //Calcul de la courbe Bspline en fonction des points de l'utilisateur
+    const pointsSpline = BSpline(point_control, degre, knots);
+    const geometry = new THREE.BufferGeometry().setFromPoints(pointsSpline); //Utilisation de cette géométrie ainsi que le matériel pour créer le tracé de la courbe Bspline
+    const couleur = new THREE.LineBasicMaterial({ color: 0xff0000 });
+    const curve = new THREE.Line(geometry, couleur); //Ajout du tracé à la scène
+    scene.add(curve);
+    //lignestrace.push(curve);
+    return curve;
+}
+
+function Afficher_Bspline() {
+    let d = document.getElementById("degree").value;
+    d = parseInt(d);
+    console.log("Afficher_Bspline");
+    let vecteurNoeuds = generateKnots(point_control.length, d);
+    // for (let i = 1; i <= d; i++) {
+        createBspline(point_control, d, vecteurNoeuds);
     // }
-    
-    // on trace la courbe B-spline
-    const bSplineGeometry = new THREE.BufferGeometry().setFromPoints(pointsOnBSplineCurve);
-    const bSplineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
-    const bSplineLine = new THREE.Line(bSplineGeometry, bSplineMaterial);
-
-    // Ajoute la ligne à la scène
-    scene.add(bSplineLine);
     renderer.render(scene, camera);
 }
+
+
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////// Affichage des points de contrôle /////////////////////////////////////////////////
@@ -206,7 +145,7 @@ const yTranslate = document.getElementById('y_translation');
 const addPointButton = document.getElementById('add_btn');
 const resetButton = document.getElementById('reset_btn');
 const translateButton = document.getElementById('translate_btn');
-let checkContruct= document.getElementById('construction_line');
+let checkContruct = document.getElementById('construction_line');
 
 addPointButton.addEventListener('click', e => {
     // ajoute un point de controle
@@ -225,7 +164,7 @@ resetButton.addEventListener('click', e => {
 });
 
 translateButton.addEventListener('click', e => {
-// translate les points de controle
+    // translate les points de controle
     e.preventDefault();
     // si la valeur est NaN, on met 0
     if (isNaN(parseFloat(xTranslate.value))) xTranslate.value = 0;
@@ -270,6 +209,7 @@ var pointplacerx;
 var pointplacery;
 var bool_placer_point = false;
 var indice_point;
+var lignestrace = [];
 
 function createPoint(x, y) {
     //créer un point de controle
@@ -287,12 +227,14 @@ function createPoint(x, y) {
     point_control.push({ x, y });
 
     if (point_control.length > 2) {
-        Draw_BSpline(point_control);
+        // trace bspline
+        Afficher_Bspline();
     }
 }
 
 function createLine() {
     // trace un trait entre les points de controle
+    console.log("create line");
     const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
     const lineGeometry = new THREE.BufferGeometry().setFromPoints([point_control[point_control.length - 2], point_control[point_control.length - 1]]);
     const line = new THREE.Line(lineGeometry, lineMaterial);
@@ -336,7 +278,7 @@ window.addEventListener('mouseup', function (event) {
             var pointIntersection = intersects[0].point; // On recupere le point d'intersection entre le laser et le plan en z=0
             point_control[indice_point].x = pointIntersection.x;
             point_control[indice_point].y = pointIntersection.y;
-            point_control[indice_point].deg= prompt("Entrez le degré de la courbe");
+            //point_control[indice_point].deg= prompt("Entrez le degré de la courbe");
         }
         // On met a jour l'affichage
         scene.remove.apply(scene, scene.children);
@@ -378,7 +320,7 @@ function onclick(event) {
             // si on click sur un point de controle on l'affiche pas
             // on doit prendre en compte le diametre de la sphere
             if (pointIntersection.x < point_control[i].x + 0.5 && pointIntersection.x > point_control[i].x - 0.5 && pointIntersection.y < point_control[i].y + 0.5 && pointIntersection.y > point_control[i].y - 0.5) {
-   
+
                 bool_placer_point = false;
                 indice_point = i;
                 // si point de controle bouge, on le met en jaune
@@ -401,12 +343,9 @@ document.addEventListener('keydown', function (event) {
     switch (event.keyCode) {
         case 32: // espace
             console.log("space");
-            Draw_Bernstein(point_control);
+            Afficher_Bspline(point_control);
             break;
-        case 13: // entrée
-            console.log("enter");
-            Draw_Calsteljau(point_control);
-            break;
+
         case 27: // echap
             console.log("escape");
             cleanScene();
