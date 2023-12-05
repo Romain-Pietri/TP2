@@ -95,9 +95,15 @@ function bSplineBasis(controlPoints, t) {
 
     // Calculate the final point on the B-spline curve
     let C = { x: 0, y: 0 };
+    console.log('controlPoints:', controlPoints)
+    console.log('N:', N)
+    console.log('d',d); 
+    for (let i = 0; i <d; i++) {
 
-    for (let i = 0; i <= d; i++) {
         console.log('i:', i, 'N:', N);
+        console.log('span - d + i:', span - d + i);
+        console.log('controlPoints[span - d + i]:', controlPoints[span - d + i]);
+        console.log('N[span - d + i][d]:', N[span - d + i])
         C.x += controlPoints[span - d + i].x * N[span - d + i][d];
         C.y += controlPoints[span - d + i].y * N[span - d + i][d];
     }
@@ -141,18 +147,20 @@ function Draw_BSpline(point_control) {
         const point = bSplineBasis(point_control, t);
         pointsOnBSplineCurve.push(new THREE.Vector3(point.x, point.y, 0));
     }
-    DrawBSplineFunctions(point_control.length - 1);
+    console.log(pointsOnBSplineCurve)
+    //DrawBSplineFunctions(point_control.length - 1);
     // if (boolean_construction) {
         
-    // }
-    
+    // 
     // on trace la courbe B-spline
     const bSplineGeometry = new THREE.BufferGeometry().setFromPoints(pointsOnBSplineCurve);
     const bSplineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
     const bSplineLine = new THREE.Line(bSplineGeometry, bSplineMaterial);
-
+    const bezierGeometry2 = new THREE.BufferGeometry().setFromPoints(pointsOnBSplineCurve);
+    const lineMaterial2 = new THREE.LineBasicMaterial({ color: 0xff0f00 }); 
+    const bSplineLine2 = new THREE.Line(bezierGeometry2, lineMaterial2);
     // Ajoute la ligne à la scène
-    scene.add(bSplineLine);
+    scene.add(bSplineLine2);
     renderer.render(scene, camera);
 }
 
@@ -336,7 +344,7 @@ window.addEventListener('mouseup', function (event) {
             var pointIntersection = intersects[0].point; // On recupere le point d'intersection entre le laser et le plan en z=0
             point_control[indice_point].x = pointIntersection.x;
             point_control[indice_point].y = pointIntersection.y;
-            point_control[indice_point].deg= prompt("Entrez le degré de la courbe");
+           
         }
         // On met a jour l'affichage
         scene.remove.apply(scene, scene.children);
@@ -401,11 +409,11 @@ document.addEventListener('keydown', function (event) {
     switch (event.keyCode) {
         case 32: // espace
             console.log("space");
-            Draw_Bernstein(point_control);
+            Draw_BSpline(point_control);
             break;
         case 13: // entrée
             console.log("enter");
-            Draw_Calsteljau(point_control);
+            //Draw_Calsteljau(point_control);
             break;
         case 27: // echap
             console.log("escape");
